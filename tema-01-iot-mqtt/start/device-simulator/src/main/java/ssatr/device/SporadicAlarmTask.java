@@ -18,11 +18,13 @@ public class SporadicAlarmTask implements Runnable {
     private final String deviceId;
     private final MqttConnection mqtt;
     private final BlockingQueue<Double> alarmEvents;
+    private final PeriodicTelemetryTask periodicTask;
 
-    public SporadicAlarmTask(String deviceId, MqttConnection mqtt, BlockingQueue<Double> alarmEvents) {
+    public SporadicAlarmTask(String deviceId, MqttConnection mqtt, BlockingQueue<Double> alarmEvents, PeriodicTelemetryTask periodicTask) {
         this.deviceId = deviceId;
         this.mqtt = mqtt;
         this.alarmEvents = alarmEvents;
+        this.periodicTask = periodicTask;
     }
 
     @Override
@@ -37,5 +39,31 @@ public class SporadicAlarmTask implements Runnable {
         //      citit din PeriodicTelemetryTask; alegeți și justificați în raport)
         //
         // Vezi exemplul exemple/01-taskuri/.../SporadicTaskExample.java
+        long lastReleaseTime = 0; // Pastreaza momentul ultimei alarme acceptate
+
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                // 1. Preluam evenimentul din coada, take() blocheaza thread-ul pana apare o valoare
+                Double temperatura = alarmEvents.take();
+                long currentTime = System.currentTimeMillis();
+
+                // 2. Interval minim intre sosiri
+                if (currentTime - lastReleaseTime >= MIN_INTERARRIVAL_MS) {
+                    lastReleaseTime = currentTime; //Actualizare timp pt ultima alarma acceptata
+
+                    // 3. Construim si publicam mesajul MQTT in formatul cerut
+                    String topic = Config.alarmTopic(deviceId);
+                    String tempFormata = String.format(java.util.Locale.US, "%.2f", temperatura);
+                    String pragFormatat = String.format(java.util.Locale.US, "%.2f", periodicTask.getThreshold());
+                    String payload = deviceId + ";" + currentTime + ";" + tempFormata + ";" + pragFormatat;
+
+                    mqtt.publish(topic, payload);
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+
     }
 }

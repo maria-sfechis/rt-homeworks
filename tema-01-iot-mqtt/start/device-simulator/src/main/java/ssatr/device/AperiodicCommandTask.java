@@ -37,6 +37,7 @@ public class AperiodicCommandTask implements Runnable {
 
     @Override
     public void run() {
+        //periodic.setPeriodMS(valoare);
         // TODO 3: implementați taskul aperiodic:
         //   - preluați comenzile din coadă: commands.take()
         //   - separați numele comenzii de parametru: command.split(" ")
@@ -46,5 +47,49 @@ public class AperiodicCommandTask implements Runnable {
         //     oprească taskul: publicați "ERROR <motiv>"
         //
         // Vezi exemplul exemple/01-taskuri/.../AperiodicTaskExample.java
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                // 1. Preluam comanda din coada
+                String commandLine = commands.take();
+                String responsePayload;
+
+                // Folosim try-catch interior pentru a preveni oprirea task-ului la comanda invalida
+                try {
+                    String[] parts = commandLine.split(" ");
+                    String cmd =  parts[0];
+                    switch (cmd) {
+                        case "SET_INTERVAL":
+                            long newInterval = Long.parseLong(parts[1]);
+                            periodic.setPeriodMs(newInterval);
+                            responsePayload = "OK " + commandLine;
+                            break;
+                        case "SET_THRESHOLD":
+                            double newThreshold = Double.parseDouble(parts[1]);
+                            periodic.setThreshold(newThreshold);
+                            responsePayload = "OK " + commandLine;
+                            break;
+                        case "RESET":
+                            sensor.reset();
+                            responsePayload = "OK " + commandLine;
+                            break;
+                        case "STATUS":
+                            responsePayload = "OK STATUS T = " + periodic.getPeriodMs() + " threshold = " + periodic.getThreshold();
+                            break;
+                        default:
+                            responsePayload = "ERROR unknown command: " + cmd;
+                    }
+                } catch (Exception e) {
+                    responsePayload = "ERROR invalid command format: " + commandLine;
+                }
+                // 2. Construim si publicam mesajul de status cerut in formatul cerut
+                String topic = Config.statusTopic(deviceId);
+                long timestamp = System.currentTimeMillis();
+                String finalMessage = deviceId + ";" + timestamp + ";" + responsePayload;
+
+                mqtt.publish(topic, finalMessage);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

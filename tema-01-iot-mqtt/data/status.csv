@@ -1,0 +1,4 @@
+deviceId;timestamp;text
+device-1;1793129550999;OK STATUS T = 2000 threshold = 28.0
+device-1;1793129584293;ERROR invalid command format: SET_INTERVAL 1+5000
+device-1;1793129618037;OK SET_INTERVAL 5000

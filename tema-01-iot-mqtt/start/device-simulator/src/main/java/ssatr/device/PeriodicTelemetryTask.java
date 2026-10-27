@@ -47,6 +47,37 @@ public class PeriodicTelemetryTask implements Runnable {
         //
         // periodMs se poate schimba în timpul rulării (comanda SET_INTERVAL),
         // deci citiți-l la fiecare job.
+
+        long nextReleaseNano = System.nanoTime();
+
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                // 1. Asteptare absoluta
+                nextReleaseNano += (periodMs * 1_000_000L);
+                long delayNano = nextReleaseNano - System.nanoTime();
+                if (delayNano > 0) {
+                    Thread.sleep(delayNano / 1_000_000L);
+                }
+
+                // 2. Citire senzor
+                double temperatura = sensor.read();
+                long timestamp = System.currentTimeMillis();
+
+                // 3. Publicarea mesajului de telemetrie
+                String topic = Config.telemetryTopic(deviceId);
+                String temperaturaFormata = String.format(java.util.Locale.US, "%.2f", temperatura);
+                String payload = deviceId + ";" + timestamp + ";" + temperaturaFormata;
+
+                mqtt.publish(topic, payload);
+
+                // 4. Verificare threshold si trimitere catre task sporadic
+                if (temperatura > threshold) {
+                    alarmEvents.put(temperatura);
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void setPeriodMs(long periodMs) {
